@@ -12,6 +12,7 @@ namespace CGNV4_Monitor
     {
         static void Main(string[] args)
         {
+            Console.WriteLine("Starting...");
             Logger mLogger = LogManager.GetCurrentClassLogger();
 
             string baseUrl = "http://192.168.100.1";
