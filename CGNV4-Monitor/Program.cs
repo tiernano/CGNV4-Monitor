@@ -2,7 +2,9 @@
 using InfluxDB.Collector;
 using NLog;
 using System;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace CGNV4_Monitor
 {
@@ -17,29 +19,11 @@ namespace CGNV4_Monitor
 
             var cli = new FlurlClient(baseUrl).EnableCookies().Configure(settings =>
             {
-                settings.BeforeCall = call => mLogger.Debug($"Calling Netgear Url {call.Request.RequestUri}");
-                settings.OnError = call => mLogger.Error($"Error calling Netgear: {call.RequestBody} -  {call.Exception}");
+                settings.BeforeCall = call => mLogger.Debug($"Calling CGNV4 Url {call.Request.RequestUri}");
+                settings.OnError = call => mLogger.Error($"Error calling CGNV4: {call.RequestBody} -  {call.Exception}");
                 settings.AfterCall = call =>
-                    mLogger.Debug($"called Netgear with {call.HttpStatus} in {call.Duration}");
+                    mLogger.Debug($"called CGNV4 with {call.HttpStatus} in {call.Duration}");
             });
-
-            var indexPage = cli.Request("/").GetStringAsync().GetAwaiter().GetResult();
-
-            string preSessionKey = cli.Cookies["preSession"].Value;
-
-            var login = cli.Request("goform/login").PostUrlEncodedAsync(new { usr = "admin", pwd = "admin" , preSession = preSessionKey, forcelogoff = 1}).ReceiveString().GetAwaiter().GetResult();
-
-            var user = cli.Request("data/getUser.asp").GetStringAsync().GetAwaiter().GetResult();
-
-            var sysInfo = cli.Request("data/getSysInfo.asp").GetJsonAsync<SystemInfo[]>().GetAwaiter().GetResult();
-
-            var cmInfo = cli.Request("data/getCMInit.asp").GetJsonAsync<CMInfo[]>().GetAwaiter().GetResult();
-
-            var upstreamInfo = cli.Request("data/usinfo.asp").GetJsonAsync<StreamInfo[]>().GetAwaiter().GetResult();
-
-            var downstreamInfo = cli.Request("data/dsinfo.asp").GetJsonAsync<StreamInfo[]>().GetAwaiter().GetResult();
-
-            var cmDocsisWan = cli.Request("data/getCmDocsisWan.asp").GetJsonAsync<DocsisWanInfo[]>().GetAwaiter().GetResult();
 
             //urls i found:
 
@@ -56,13 +40,55 @@ namespace CGNV4_Monitor
 
 
 
-            //mLogger.Debug("Calling out to telegraf");
-            //Metrics.Collector = new CollectorConfiguration()
-            //    .Tag.With("host", Environment.GetEnvironmentVariable("COMPUTERNAME"))
-            //    .Batch.AtInterval(TimeSpan.FromSeconds(30))
-            //    .WriteTo.InfluxDB("http://192.168.1.119:8086", "telegraf")
-            //    .CreateCollector();
+            mLogger.Debug("Calling out to telegraf");
+            Metrics.Collector = new CollectorConfiguration()
+                .Tag.With("host", Environment.GetEnvironmentVariable("COMPUTERNAME"))
+                .Batch.AtInterval(TimeSpan.FromSeconds(30))
+                .WriteTo.InfluxDB("http://192.168.1.119:8086", "telegraf")
+                .CreateCollector();
 
+            while (true)
+            {
+                try
+                {
+                    var indexPage = cli.Request("/").GetStringAsync().GetAwaiter().GetResult();
+
+                    string preSessionKey = cli.Cookies["preSession"].Value;
+
+                    var login = cli.Request("goform/login").PostUrlEncodedAsync(new { usr = "admin", pwd = "admin", preSession = preSessionKey, forcelogoff = 1 }).ReceiveString().GetAwaiter().GetResult();
+
+                    //var user = cli.Request("data/getUser.asp").GetStringAsync().GetAwaiter().GetResult();
+
+                    //var sysInfo = cli.Request("data/getSysInfo.asp").GetJsonAsync<SystemInfo[]>().GetAwaiter().GetResult();
+
+                    //var cmInfo = cli.Request("data/getCMInit.asp").GetJsonAsync<CMInfo[]>().GetAwaiter().GetResult();
+
+                    var upstreamInfo = cli.Request("data/usinfo.asp").GetJsonAsync<StreamInfo[]>().GetAwaiter().GetResult();
+
+                    var downstreamInfo = cli.Request("data/dsinfo.asp").GetJsonAsync<StreamInfo[]>().GetAwaiter().GetResult();
+
+                    //var cmDocsisWan = cli.Request("data/getCmDocsisWan.asp").GetJsonAsync<DocsisWanInfo[]>().GetAwaiter().GetResult();
+
+                    Dictionary<string, object> channelStuff = new Dictionary<string, object>();
+
+                    foreach (var u in upstreamInfo)
+                    {
+                        channelStuff.Add($"us{u.channelId}", decimal.Parse(u.signalStrength));
+                    }
+                    foreach (var d in downstreamInfo)
+                    {
+                        channelStuff.Add($"ds{d.channelId}", decimal.Parse(d.signalStrength));
+                    }
+
+                    Metrics.Write("docsis_channel", channelStuff);
+                }
+                catch(Exception ex)
+                {
+                    mLogger.Error(ex, "Error somewhere");
+                }
+
+                Thread.Sleep(30000);
+            }
 
             //while (true)
             //{
