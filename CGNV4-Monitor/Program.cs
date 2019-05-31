@@ -14,7 +14,6 @@ namespace CGNV4_Monitor
         {
             Logger mLogger = LogManager.GetCurrentClassLogger();
 
-
             string baseUrl = "http://192.168.100.1";
 
             var cli = new FlurlClient(baseUrl).EnableCookies().Configure(settings =>
@@ -89,19 +88,6 @@ namespace CGNV4_Monitor
 
                 Thread.Sleep(30000);
             }
-
-            //while (true)
-            //{
-            //    try
-            //    {
-            //        var model = cli.Request("/api/model.json").SetQueryParam("internalapi", "1").GetJsonAsync<Model>().GetAwaiter().GetResult();
-
-            //    }
-            //    catch(Exception ex)
-            //    {
-
-            //    }
-            //}
         }
     }
 }
