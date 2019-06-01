@@ -1,6 +1,6 @@
 ﻿using Flurl.Http;
 using InfluxDB.Collector;
-using NLog;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -13,16 +13,20 @@ namespace CGNV4_Monitor
         static void Main(string[] args)
         {
             Console.WriteLine("Starting...");
-            Logger mLogger = LogManager.GetCurrentClassLogger();
+            Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .WriteTo.File("consoleapp.log")
+            .WriteTo.Console()
+            .CreateLogger();
 
             string baseUrl = "http://192.168.100.1";
 
             var cli = new FlurlClient(baseUrl).EnableCookies().Configure(settings =>
             {
-                settings.BeforeCall = call => mLogger.Debug($"Calling CGNV4 Url {call.Request.RequestUri}");
-                settings.OnError = call => mLogger.Error($"Error calling CGNV4: {call.RequestBody} -  {call.Exception}");
+                settings.BeforeCall = call => Log.Logger.Debug($"Calling CGNV4 Url {call.Request.RequestUri}");
+                settings.OnError = call => Log.Logger.Error($"Error calling CGNV4: {call.RequestBody} -  {call.Exception}");
                 settings.AfterCall = call =>
-                    mLogger.Debug($"called CGNV4 with {call.HttpStatus} in {call.Duration}");
+                    Log.Logger.Debug($"called CGNV4 with {call.HttpStatus} in {call.Duration}");
             });
 
             //urls i found:
@@ -40,7 +44,7 @@ namespace CGNV4_Monitor
 
 
 
-            mLogger.Debug("Calling out to telegraf");
+            Log.Logger.Debug("Calling out to telegraf");
             Metrics.Collector = new CollectorConfiguration()
                 .Tag.With("host", Environment.GetEnvironmentVariable("COMPUTERNAME"))
                 .Batch.AtInterval(TimeSpan.FromSeconds(30))
@@ -84,7 +88,7 @@ namespace CGNV4_Monitor
                 }
                 catch(Exception ex)
                 {
-                    mLogger.Error(ex, "Error somewhere");
+                    Log.Logger.Error(ex, "Error somewhere");
                 }
 
                 Thread.Sleep(30000);
