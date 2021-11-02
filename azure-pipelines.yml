@@ -6,7 +6,8 @@
 trigger:
 - master
 
-pool: default
+pool:
+    vmImage: 'windows-2022'
 
 variables:
   solution: '**/*.sln'
